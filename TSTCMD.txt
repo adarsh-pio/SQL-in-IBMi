@@ -1,0 +1,20 @@
+     d cmdstr          s           1000a   inz
+     d cmdlen          s              4s 0 inz
+
+     d text            s             60a   inz
+
+
+       //DSPOBJD OBJ(TESTLIB)
+       //        OBJTYPE(*LIB)
+       //        OUTPUT(*OUTFILE)
+       //        OUTFILE(QTEMP/Q1)
+
+       cmdstr = 'DSPOBJD OBJ(TESTLIB) OBJTYPE(*LIB) OUTPUT(*OUTFILE) ' +
+                'OUTFILE(QTEMP/Q1)';
+       cmdlen = %len(%trim(cmdstr));
+
+       exec sql call qsys2.qcmdexc( :cmdstr, :cmdlen );
+       exec sql get diagnostics condition 1 :text = MESSAGE_TEXT;
+
+
+       *inlr = *on;

@@ -1,0 +1,2 @@
+     c/exec sql select id, name into :id_, :name_ from testpf where id = '008'
+     c/end-exec

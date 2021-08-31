@@ -1,0 +1,22 @@
+       dcl-s rc   zoned(4:0) inz;
+
+       dcl-ds in      extname('SENSP') qualified end-ds;
+       //Compiler directive..
+       exec sql set option commit = *none;
+       //Main line..
+       exec sql declare I1 sensitive cursor for
+                select * from sensp where dept = 'CSE';
+
+       exec sql open I1;
+       exec sql fetch I1 into :In;
+       dow sqlcode = 0;
+
+           if in.STS <> 'A';
+             exec sql delete from sensp where current of I1;
+           endif;
+
+           exec sql fetch I1 into :In;
+       enddo;
+
+       exec sql close I1;
+       *inlr = *on;

@@ -1,0 +1,193 @@
+     H DFTACTGRP(*NO) OPTION(*SRCSTMT)
+
+     d res             ds                  qualified
+     d fld1                           3a   inz
+     d fld2                          10a   inz
+
+     d res_arr         ds                  qualified dim(5)
+     d fld1_                          3a   inz
+     d fld2_                         20a   inz
+
+     d fld1            s              3a   inz
+     d fld2            s             20a   inz
+
+     d rc              s              2s 0
+     d maxrow          s              2s 0 inz(5)
+
+     d count_          s              3s 0 inz
+     d i               s              3s 0 inz
+
+     d string_         s           1500a   inz
+     d id_num          s              3a   inz
+
+     d itr             s              2s 0 inz
+     d text            s             60a   inz
+
+        // setting compiler options....
+
+        exec sql set option commit = *none,
+                            datfmt = *iso,
+                            closqlcsr = *endmod;
+
+
+        //extracting values using normal sql statements...
+
+           exec sql select count(*) into :count_ from testpf;
+           if sqlcode = 0;
+              dsply count_;
+           endif;
+
+        //extracting multiple records into standalone variables..
+
+           exec sql select id, name into :fld1, :fld2 from testpf;
+           exec sql get diagnostics condition 1 :text = MESSAGE_TEXT;        //successful fetch
+           dsply (fld1 + ' ' + fld2);                                        //gives -811
+                                                                           //(multi record fetch)
+
+        //Extract records one at a time using cursor..
+
+           exec sql declare c1 cursor for
+                    select * from testpf for read only;
+
+           exec sql open c1;
+        // exec sql fetch next from c1 into :fld1, :fld2;
+           exec sql fetch next from c1 into :res;
+           dow sqlcode = 0;
+           // dsply (fld1 + ' ' + fld2);
+              dsply (res.fld1 + ' ' + res.fld2);
+        // exec sql fetch next from c1 into :fld1, :fld2;
+           exec sql fetch next from c1 into :res;
+           enddo;
+           exec sql close c1;
+
+
+        //Normal fetch into datastructure using scroll cursor..
+
+           exec sql declare c3 scroll cursor for
+                    select * from testpf for read only;
+           exec sql open c3;
+           exec sql fetch first from c3 into :res;
+           exec sql get diagnostics :rc = ROW_COUNT;
+           dow rc = 1;
+             dsply (res.fld1 + ' ' + res.fld2);
+             exec sql fetch next from c3 into :res;
+             exec sql get diagnostics :rc = ROW_COUNT;
+           enddo;
+           exec sql close c3;
+
+        //eqivalent of setgt - readp..
+
+           exec sql declare c4 scroll cursor for
+                    select * from testpf order by id for read only;
+           exec sql open c4;
+           exec sql fetch last from  c4 into :res;
+           if sqlcode = 0;
+           dsply (res.fld1 + ' ' + res.fld2);
+           exec sql fetch prior from c4 into :res;
+             if sqlcode = 0;
+               dsply (res.fld1 + ' ' + res.fld2);
+             endif;
+           endif;
+           exec sql close c4;
+
+        //fetch relative record using scroll cursor..
+
+           exec sql declare c5 scroll cursor for
+                    select * from testpf order by id for read only;
+           exec sql open c5;
+           exec sql fetch relative 5 from c5 for 5 rows into :res_arr;
+           exec sql get diagnostics :rc = ROW_COUNT;
+              for i = 1 to rc;
+                dsply (res_arr(i).fld1_ + ' ' + res_arr(i).fld2_);
+              endfor;
+           exec sql close c5;
+
+        //preparing/declaring cursor from string..
+
+           id_num = '006';
+           string_ = 'select * from testpf +
+                      where id = ? ';
+
+           exec sql prepare P6 from :string_;
+           exec sql declare C6 cursor for P6;
+           exec sql open C6 using :id_num;
+           exec sql fetch c6 into :res;
+           if sqlcode = 0;
+             dsply (res.fld1 + ' ' + res.fld2);
+           endif;
+           exec sql close c6;
+
+        //fetching from dynamic cursor into datastructure..
+
+           id_num = '007';
+           exec sql declare c7 cursor for
+                    select * from testpf where id = :id_num;
+           exec sql open C7;
+           exec sql fetch c7 into :res;
+           if sqlcode = 0;
+             dsply (res.fld1 +  ' ' + res.fld2);
+           endif;
+           exec sql close c7;
+
+
+
+        //inserting one record at a time...
+
+           res.fld1 = '020';
+           res.fld2 = 'twenty';
+           exec sql insert into testpf values(:res);
+
+           // or we can also do the below
+
+           string_ = 'insert into testpf values(' + '''' + '021' +
+                     ', ' + '''' + 'twenty one' + '''' + ')';
+
+           exec sql execute immediate :string_;
+
+
+        //deleting records without using cursor
+
+           id_num = '021';
+           string_ = 'delete from testpf where id = ?';
+
+           exec sql prepare p9 from :string_;
+           exec sql execute p9 using :id_num;
+
+           //or we can do the below
+
+           id_num = '021';
+           string_ = 'delete from testpf where id = ' + id_num;
+
+           exec sql prepare p1 from :string_;
+           exec sql execute p1;
+
+         //update/delete using cursor....
+
+           exec sql declare c10 cursor for
+                    select * from testpf for update of name;
+           exec sql open c10;
+           exec sql fetch c10 into :fld1, :fld2;
+           dow sqlcode = 0;
+           if %REM(%int(fld1) : 5) = 0;
+             exec sql update testpf set name = 'updated' where current of c10;
+             exec sql get diagnostics condition 1 :text = MESSAGE_TEXT;
+             dsply 'record updated';
+           elseif %REM(%int(fld1) : 7) = 0;
+             exec sql delete from testpf where current of c10;
+             dsply 'record deleted';
+           endif;
+           exec sql fetch c10 into :fld1, :fld2;
+           enddo;
+           exec sql close c10;
+
+         //inserting multiple records at once..
+
+           for itr = 1 to 5;
+             res_arr(itr).fld1_ = %char(itr);
+             res_arr(itr).fld2_ = 'insert' + %char(itr);
+           endfor;
+
+           exec sql INSERT INTO testpf  5 ROWS   VALUES (:res_arr);
+           exec sql get diagnostics condition 1 :text = MESSAGE_TEXT;
+
+            *inlr = *on;

@@ -1,0 +1,16 @@
+     H option(*srcstmt) dftactgrp(*no)
+
+     d id_             s              3a   inz
+     d name_           s             10a   inz
+
+
+
+     c/Exec sql
+     c+ select id, name into :id_, :name_
+     c+ from testpf where id ='009'
+     c/End-Exec
+
+     c/Exec sql INCLUDE SQSTMT
+     c/End-Exec
+
+     c                   eval      *inlr = *on
